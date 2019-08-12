@@ -51,12 +51,12 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
     }
 
     private func read(request: ReadRequest, result: @escaping FlutterResult) {
-        requestAuthorization(sampleTypes: [request.sampleType]) { success, error in
+        let permissions = try! HKSampleType.permissionRequestTypes(type: request.type)
+        requestAuthorization(sampleTypes: permissions["permissionRequests"] as! [HKSampleType] ) { success, error in
             guard success else {
                 result(error)
                 return
             }
-
             self.readSample(request: request, result: result)
         }
     }
@@ -71,13 +71,52 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
                 completion(false, FlutterError(code: self.TAG, message: "Error \(error?.localizedDescription ?? "empty")", details: nil))
                 return
             }
-
             completion(true, nil)
         }
     }
 
+    private func readBloodPressureSample(request: ReadRequest, result: @escaping FlutterResult) {
+
+        let predicate = HKQuery.predicateForSamples(withStart: request.dateFrom, end: request.dateTo, options: .strictStartDate)
+        //let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: true)
+
+        let query = HKCorrelationQuery(type: request.sampleType as! HKCorrelationType, predicate: predicate, samplePredicates: nil ) { _, samplesOrNil, error in
+            guard let samples = samplesOrNil else {
+                result(FlutterError(code: self.TAG, message: "Results are null", details: error))
+                return
+            }
+
+            let results = samples.map { sample  -> NSDictionary in
+                guard let systolicSample = sample.objects(for: HKObjectType.quantityType(forIdentifier: HKQuantityTypeIdentifier.bloodPressureSystolic)!).first! as? HKQuantitySample else {
+                    return [:]
+                }
+                guard let diastolicSample = sample.objects(for: HKObjectType.quantityType(forIdentifier: HKQuantityTypeIdentifier.bloodPressureDiastolic)!).first! as? HKQuantitySample else {
+                    return [:]
+                }
+
+                let systolicValue = systolicSample.quantity.doubleValue(for: HKUnit.millimeterOfMercury())
+                let diastolicValue = diastolicSample.quantity.doubleValue(for: HKUnit.millimeterOfMercury())
+
+                return [
+                    "systolic" : systolicValue,
+                    "diastolic" : diastolicValue,
+                    "date_from": Int(sample.startDate.timeIntervalSince1970 * 1000),
+                    "date_to": Int(sample.endDate.timeIntervalSince1970 * 1000),
+                ]
+            }
+            result (results)
+        }
+        healthStore!.execute(query)
+    }
+
     private func readSample(request: ReadRequest, result: @escaping FlutterResult) {
         print("readSample: \(request.type)")
+
+    // Quick and dirty: bloood pressure requires different readout
+        if request.type == "blood_pressure" {
+            readBloodPressureSample(request: request, result: result);
+            return;
+        }
 
         let predicate = HKQuery.predicateForSamples(withStart: request.dateFrom, end: request.dateTo, options: .strictStartDate)
         let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: true)
@@ -92,22 +131,21 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
                     return	
                 }	
 
-                 print(samples)	
-                result(samples.map { sample -> NSDictionary in	
+                result(samples.map { sample -> NSDictionary in
                     return [	
                         "value": sample.value, // inBed = 0, asleep = 1, awake = 2	
                         "date_from": Int(sample.startDate.timeIntervalSince1970 * 1000),	
                         "date_to": Int(sample.endDate.timeIntervalSince1970 * 1000),	
                     ]	
-                })	
-            } else {	
+                })
+
+            } else {
                 guard let samples = samplesOrNil as? [HKQuantitySample] else {	
                     result(FlutterError(code: self.TAG, message: "Results are null", details: error))	
                     return	
                 }	
 
-                 print(samples)	
-                result(samples.map { sample -> NSDictionary in	
+                result(samples.map { sample -> NSDictionary in
                     return [	
                         "value": sample.quantity.doubleValue(for: request.unit),	
                         "date_from": Int(sample.startDate.timeIntervalSince1970 * 1000),	
@@ -115,6 +153,7 @@ public class SwiftFitKitPlugin: NSObject, FlutterPlugin {
                     ]	
                 })
         }
-        healthStore!.execute(query)
     }
+        healthStore!.execute(query)
+}
 }

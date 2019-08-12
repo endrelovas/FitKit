@@ -1,5 +1,6 @@
 import UIKit
 import Flutter
+import HealthKit
 
 @UIApplicationMain
 @objc class AppDelegate: FlutterAppDelegate {

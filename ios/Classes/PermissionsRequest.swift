@@ -16,13 +16,16 @@ class PermissionsRequest {
     static func fromCall(call: FlutterMethodCall) throws -> PermissionsRequest {
         guard let arguments = call.arguments as? Dictionary<String, Any>,
               let types = arguments["types"] as? Array<String> else {
-            throw "invalid call arguments \(call.arguments)";
+            throw "invalid call arguments \(String(describing: call.arguments))";
         }
 
-        let sampleTypes = try types.map { type -> HKSampleType in
-            try HKSampleType.fromDartType(type: type)
+        var sampleTypes : [HKSampleType] = []
+        var typeStrings : [String] = []
+        for type in types {
+            let requestTypes = try HKSampleType.permissionRequestTypes(type: type)
+            sampleTypes.append(contentsOf: requestTypes["permissionRequests"] as! [HKSampleType])
+            typeStrings.append(contentsOf: requestTypes["types"] as! [String])
         }
-
-        return PermissionsRequest(types: types, sampleTypes: sampleTypes)
+        return PermissionsRequest(types: typeStrings, sampleTypes: sampleTypes)
     }
 }

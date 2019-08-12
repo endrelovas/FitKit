@@ -30,7 +30,7 @@ class _MyAppState extends State<MyApp> {
         for (DataType type in DataType.values) {
           final data = await FitKit.read(
             type,
-            DateTime.now().subtract(Duration(days: 5)),
+            DateTime.now().subtract(Duration(days: 30)),
             DateTime.now(),
           );
 

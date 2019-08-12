@@ -41,6 +41,10 @@ class FitKit {
         return "water";
       case DataType.SLEEP:
         return "sleep";
+      case DataType.BLOOD_PRESSURE:
+        return "blood_pressure";
+      case DataType.BLOOD_GLUCOSE:
+        return "blood_glucose";
     }
     throw Exception('dataType $type not supported');
   }
@@ -54,5 +58,7 @@ enum DataType {
   DISTANCE,
   ENERGY,
   WATER,
-  SLEEP
+  SLEEP,
+  BLOOD_PRESSURE,
+  BLOOD_GLUCOSE,
 }

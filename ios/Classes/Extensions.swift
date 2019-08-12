@@ -11,6 +11,24 @@ extension String: LocalizedError {
 }
 
 extension HKSampleType {
+    public static func permissionRequestTypes(type: String) throws -> [String:Any] {
+        if (type == "blood_pressure") {
+            guard let systolicSampleType = HKSampleType.quantityType(forIdentifier: .bloodPressureSystolic),
+                let diastolicSampleType = HKSampleType.quantityType(forIdentifier: .bloodPressureDiastolic) else {
+                throw "type \"\(type)\" is not supported"
+             }
+            return [
+                "permissionRequests" : [systolicSampleType, diastolicSampleType],
+                "types" : ["systolicSampleType", "diastolicSampleType"]]
+        } else {
+            let sampleType = try HKSampleType.fromDartType(type: type)
+            return [
+                "permissionRequests" : [sampleType],
+                "types" : [type]
+                ]
+        }
+    }
+
     public static func fromDartType(type: String) throws -> HKSampleType {
         guard let sampleType: HKSampleType = {
             switch type {
@@ -34,6 +52,10 @@ extension HKSampleType {
                 } else {
                     return nil
                 }
+            case "blood_pressure":
+                return HKCorrelationType.correlationType(forIdentifier: HKCorrelationTypeIdentifier.bloodPressure)
+            case "blood_glucose":
+                return HKSampleType.quantityType(forIdentifier: .bloodGlucose)
             default:
                 return nil
             }
@@ -64,6 +86,10 @@ extension HKUnit {
                 return HKUnit.minute()
             case "water":
                 return HKUnit.liter()
+            case "blood_pressure":
+                return HKUnit.millimeterOfMercury()
+            case "blood_glucose":
+                return HKUnit.moleUnit(with: HKMetricPrefix.milli, molarMass: HKUnitMolarMassBloodGlucose).unitDivided(by: .liter())
             default:
                 return nil
             }
