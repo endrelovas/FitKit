@@ -23,7 +23,7 @@ class _MyAppState extends State<MyApp> {
     String results = "";
 
     try {
-      final permissions = await FitKit.requestPermissions(DataType.values);
+      final permissions = await FitKit.requestPermissions(DataType.values.sublist(0,1));
       if (!permissions) {
         results = "User declined permissions";
       } else {
