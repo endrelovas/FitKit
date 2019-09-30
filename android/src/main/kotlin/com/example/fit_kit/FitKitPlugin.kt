@@ -90,8 +90,11 @@ class FitKitPlugin(private val registrar: Registrar) : MethodCallHandler {
         requestOAuthPermissions(options, {
             if(request.type == "sleep"){
                 readSession(request, result)	
-            } else {	
-                readSample(request, result)	
+            } else if(request.type == "blood_pressure"){
+                readBloodPressure(request, result)
+            } else {
+                    readSample(request, result)
+
             }
         }, {
             result.error(TAG, "User denied permission access", null)
@@ -126,8 +129,24 @@ class FitKitPlugin(private val registrar: Registrar) : MethodCallHandler {
         return GoogleSignIn.hasPermissions(GoogleSignIn.getLastSignedInAccount(registrar.context()), fitnessOptions)
     }
 
+    private fun readBloodPressure(request: ReadRequest, result: Result) {
+        Log.d(TAG, "readBloodPressure: ${request.type}")
+
+        val readRequest = DataReadRequest.Builder()
+                .read(request.dataType)
+                .bucketByTime(1, TimeUnit.DAYS)
+                .setTimeRange(request.dateFrom.time, request.dateTo.time, TimeUnit.MILLISECONDS)
+                .enableServerQueries()
+                .build()
+
+        Fitness.getHistoryClient(registrar.context(), GoogleSignIn.getLastSignedInAccount(registrar.context())!!)
+                .readData(readRequest)
+                .addOnSuccessListener { response -> onSuccessBloodPressure(response, result) }
+                .addOnFailureListener { e -> result.error(TAG, e.message, null) }
+                .addOnCanceledListener { result.error(TAG, "GoogleFit Cancelled", null) }
+    }
+
     private fun readSample(request: ReadRequest, result: Result) {
-        Log.d(TAG, "readSample: ${request.type}")
 
         val readRequest = DataReadRequest.Builder()
                 .read(request.dataType)
@@ -158,7 +177,15 @@ class FitKitPlugin(private val registrar: Registrar) : MethodCallHandler {
                 .addOnSuccessListener { response -> onSuccessSession(response, result) }	
                 .addOnFailureListener { e -> result.error(TAG, e.message, null) }	
                 .addOnCanceledListener { result.error(TAG, "GoogleFit Cancelled", null) }	
-    }	
+    }
+
+    private fun onSuccessBloodPressure(response: DataReadResponse, result: Result) {
+        response.buckets.flatMap { it.dataSets }
+                .filterNot { it.isEmpty }
+                .flatMap { it.dataPoints }
+                .map(::dataPointBloodPressureToMap)
+                .let(result::success)
+    }
 
     private fun onSuccess(response: DataReadResponse, result: Result) {
         response.buckets.flatMap { it.dataSets }
@@ -176,10 +203,34 @@ class FitKitPlugin(private val registrar: Registrar) : MethodCallHandler {
                 .let(result::success)	
     }
 
+
+    @Suppress("IMPLICIT_CAST_TO_ANY")
+    private fun dataPointBloodPressureToMap(dataPoint: DataPoint): Map<String, Any> {
+        val field = dataPoint.dataType.fields.first()
+        val field2 = dataPoint.dataType.fields[1]
+        val map = mutableMapOf<String, Any>()
+        map["systolic"] = dataPoint.getValue(field).let { value ->
+            when (value.format) {
+                Field.FORMAT_FLOAT -> value.asFloat()
+                Field.FORMAT_INT32 -> value.asInt()
+                else -> TODO("for future fields")
+            }
+        }
+        map["diastolic"] = dataPoint.getValue(field2).let { value ->
+            when (value.format) {
+                Field.FORMAT_FLOAT -> value.asFloat()
+                Field.FORMAT_INT32 -> value.asInt()
+                else -> TODO("for future fields")
+            }
+        }
+        map["date_from"] = dataPoint.getStartTime(TimeUnit.MILLISECONDS)
+        map["date_to"] = dataPoint.getEndTime(TimeUnit.MILLISECONDS)
+        return map
+    }
+
     @Suppress("IMPLICIT_CAST_TO_ANY")
     private fun dataPointToMap(dataPoint: DataPoint): Map<String, Any> {
         val field = dataPoint.dataType.fields.first()
-
         val map = mutableMapOf<String, Any>()
         map["value"] = dataPoint.getValue(field).let { value ->
             when (value.format) {
